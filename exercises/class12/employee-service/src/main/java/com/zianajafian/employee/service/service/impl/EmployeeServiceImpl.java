@@ -46,7 +46,7 @@ public class EmployeeServiceImpl implements EmployeeService {
         Department department = restTemplate.getForObject("http://DEPARTMENT-SERVICE/api/departments/" + employee.getDepartmentId(), Department.class);
 
 
-        System.out.println("Dep: "+department);
+        //System.out.println("Dep: "+department);
 
         //combine both employee and department
         EmployeeDepartment employeeDepartment = new EmployeeDepartment();
