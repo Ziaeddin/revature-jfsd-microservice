@@ -10,6 +10,6 @@ import lombok.NoArgsConstructor;
 public class ProductResponse {
     private Long productId;
     private String name;
-    private Long price;
+    private Double price;
     private Long quantity;
 }

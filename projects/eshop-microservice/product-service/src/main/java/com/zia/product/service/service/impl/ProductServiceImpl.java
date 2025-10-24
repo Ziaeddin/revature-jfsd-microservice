@@ -3,6 +3,7 @@ package com.zia.product.service.service.impl;
 import com.zia.product.service.dto.ProductRequest;
 import com.zia.product.service.dto.ProductResponse;
 import com.zia.product.service.entity.Product;
+import com.zia.product.service.exeption.ProductServiceExeption;
 import com.zia.product.service.repository.ProductRepository;
 import com.zia.product.service.service.ProductService;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -41,13 +42,21 @@ public class ProductServiceImpl implements ProductService {
     @Override
     public ProductResponse getProductById(Long productId) {
         ProductResponse productResponse = new ProductResponse();
-        Product product = productRepository.findById(productId).orElseThrow(() -> new RuntimeException("Product not found"));
+        Product product = productRepository.findById(productId).orElseThrow(() -> new ProductServiceExeption("Product not found","404"));
         copyProperties(product, productResponse);
         return productResponse;
     }
 
     @Override
     public void reduceQuantity(Long productId, Long quantity) {
-
+        // need to get the product by id or throw exception
+        Product product = productRepository.findById(productId).orElseThrow(() -> new ProductServiceExeption("Product not found","404"));
+        //check if the product quantity is less than the requested quantity
+        if (product.getQuantity() < quantity) {
+            throw new ProductServiceExeption("Insufficient quantity", "400");
+        }
+        //reduce the quantity
+        product.setQuantity(product.getQuantity() - quantity);
+        productRepository.save(product);
     }
 }

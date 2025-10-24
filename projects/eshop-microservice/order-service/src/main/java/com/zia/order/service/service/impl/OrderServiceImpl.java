@@ -1,6 +1,7 @@
 package com.zia.order.service.service.impl;
 
 import com.zia.order.service.entity.Order;
+import com.zia.order.service.external.client.ProductService;
 import com.zia.order.service.model.OrderRequest;
 import com.zia.order.service.repository.OrderRepository;
 import com.zia.order.service.service.OrderService;
@@ -15,6 +16,9 @@ public class OrderServiceImpl implements OrderService {
     @Autowired
     private OrderRepository orderRepository;
 
+    @Autowired
+    private ProductService productService;
+
     @Override
     public Long placeOrder(OrderRequest orderRequest) {
 
@@ -23,7 +27,10 @@ public class OrderServiceImpl implements OrderService {
         // 3. call the payment service to make the payment if success update the order status to PLACED
         // 4. if payment fails update the order status to PAYMENT_FAILED
 
-        // Step 1: Save order details to the database with status as CREATED
+        // Step 1: Reduce product quantity by calling Product Service
+        productService.reduceQuantity(orderRequest.getProductId(), orderRequest.getQuantity());
+
+        // Step 2: Save order details to the database with status as CREATED
         Order order = new Order();
         order.setAmount(orderRequest.getAmount());
         order.setProductId(orderRequest.getProductId());
