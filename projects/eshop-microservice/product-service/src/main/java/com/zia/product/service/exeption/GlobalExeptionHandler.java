@@ -12,7 +12,15 @@ public class GlobalExeptionHandler extends ResponseEntityExceptionHandler {
     @ExceptionHandler(ProductServiceExeption.class)
     public ResponseEntity<ErrorDetail> handleProductServiceExeption(ProductServiceExeption ex) {
         ErrorDetail errorDetail = new ErrorDetail(ex.getMessage(), ex.getStatusCode());
-        return new ResponseEntity<>(errorDetail, HttpStatus.valueOf(Integer.parseInt(ex.getStatusCode())));
+        switch (ex.getStatusCode()){
+            case "PRODUCT_NOT_FOUND":
+                return new ResponseEntity<>(errorDetail, HttpStatus.NOT_FOUND);
+            case "INSUFFICIENT_QUANTITY":
+                return new ResponseEntity<>(errorDetail, HttpStatus.NOT_FOUND);
+            default:
+                errorDetail.setStatusCode("PRODUCT_SERVICE_ERROR");
+                return new ResponseEntity<>(errorDetail, HttpStatus.INTERNAL_SERVER_ERROR);
+        }
     }
 
 }

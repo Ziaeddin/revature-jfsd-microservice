@@ -15,11 +15,12 @@ public class CustomErrorDecoder implements ErrorDecoder {
 
         try {
             ProductErrorDetail productErrorDetail = mapper.readValue(response.body().asInputStream(), ProductErrorDetail.class);
+            System.out.println(productErrorDetail.toString());
             return new CustomExeption(productErrorDetail.getMessage()
             , productErrorDetail.getStatusCode()
                     , response.status());
         } catch (Exception e) {
-            return new CustomExeption("Internal Server Error",
+            return new CustomExeption(e.getMessage(),
                     "INTERNAL_SERVER_ERROR",
                     response.status());
         }
