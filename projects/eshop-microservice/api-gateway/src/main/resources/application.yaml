@@ -6,11 +6,19 @@ spring:
   cloud:
     gateway:
       routes:
+        - id: AUTH-JWT-SERVICE
+          uri: lb://AUTH-JWT-SERVICE
+          predicates:
+            - Path=/api/auth/**
         - id: PRODUCT-SERVICE
           uri: lb://PRODUCT-SERVICE
           predicates:
-            - Path=/api/product/**
+            - Path=/api/products/**
+          filters:
+            - AuthenticationFilter
         - id: CATEGORY-SERVICE
           uri: lb://CATEGORY-SERVICE
           predicates:
-            - Path=/api/category/**
+            - Path=/api/categories/**
+          filters:
+            - AuthenticationFilter

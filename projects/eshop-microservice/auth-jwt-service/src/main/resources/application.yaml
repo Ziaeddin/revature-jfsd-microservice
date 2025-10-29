@@ -1,0 +1,17 @@
+spring:
+  application:
+    name: AUTH-JWT-SERVICE
+  config:
+    import: "optional:configserver:http://localhost:9000"
+#  datasource:
+#    url: jdbc:mysql://localhost:3306/auth_db?createDatabaseIfNotExist=true
+#    username: root
+#    password: root
+#    driver-class-name: com.mysql.cj.jdbc.Driver
+#  jpa:
+#    hibernate:
+#      ddl-auto: update
+#    show-sql: true
+#
+#server:
+#  port: 8081
