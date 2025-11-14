@@ -1,0 +1,35 @@
+# Test Configuration
+# This file is used when running tests
+
+spring:
+  datasource:
+    # Use H2 in-memory database for testing
+    url: jdbc:h2:mem:testdb
+    driver-class-name: org.h2.Driver
+    username: sa
+    password:
+
+  jpa:
+    hibernate:
+      # Recreate database schema for each test
+      ddl-auto: create-drop
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.H2Dialect
+        format_sql: true
+    show-sql: false
+
+# JWT Configuration for testing
+app:
+  jwt-secret: VGhpcyBpcyB0aGUgSldUIHNlY3JldCBrZXkgZm9yIGltcGxlbWVudGluZyBqd3QgdG9rZW4gc3lzdGVtIGluIGF1dGhnIHNlcnZpY2U=
+  jwt-expiration-milliseconds: 3600000
+
+# Disable Eureka client during tests
+eureka:
+  client:
+    enabled: false
+
+# Disable Spring Cloud Config during tests
+spring.cloud.config:
+  enabled: false
+

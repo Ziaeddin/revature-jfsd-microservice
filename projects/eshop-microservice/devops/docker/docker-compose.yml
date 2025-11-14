@@ -1,0 +1,376 @@
+#
+# ============================================================================
+# E-SHOP MICROSERVICES DOCKER COMPOSE
+# ============================================================================
+#
+# This file orchestrates all backend services for the e-shop application.
+#
+# WHAT IT DOES:
+# - Starts all microservices with proper networking
+# - Sets up MySQL database
+# - Configures service discovery (Eureka)
+# - Routes traffic through API Gateway
+#
+# HOW TO USE:
+# - Start all services:     docker-compose up -d
+# - Stop all services:      docker-compose down
+# - View logs:              docker-compose logs -f [service-name]
+# - Restart a service:      docker-compose restart [service-name]
+# - Check status:           docker-compose ps
+#
+# ============================================================================
+
+version: '3.8'
+
+# NETWORKS: Create an isolated network for all services
+networks:
+  eshop-network:
+    driver: bridge
+    # Bridge network allows containers to communicate by service name
+
+# VOLUMES: Persist data across container restarts
+volumes:
+  mysql-data:
+    # Stores MySQL database files
+  sonarqube-data:
+    # Stores SonarQube configuration and data
+  sonarqube-extensions:
+    # Stores SonarQube plugins
+  sonarqube-logs:
+    # Stores SonarQube logs
+
+# SERVICES: Define all containers
+services:
+
+  # ========================================
+  # DATABASE SERVICES
+  # ========================================
+  
+  # MySQL Database
+  mysql:
+    image: mysql:8.0
+    container_name: eshop-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpassword
+      MYSQL_DATABASE: eshop_db
+      # These environment variables initialize the database
+    ports:
+      - "3306:3306"
+      # Maps container port 3306 to host port 3306
+    volumes:
+      - mysql-data:/var/lib/mysql
+      # Persists database data on host machine
+    networks:
+      - eshop-network
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      # Ensures MySQL is ready before starting dependent services
+
+  # ========================================
+  # CODE QUALITY & CI/CD SERVICES
+  # ========================================
+  
+  # SonarQube for Code Quality Analysis
+  sonarqube:
+    image: sonarqube:community
+    container_name: eshop-sonarqube
+    restart: unless-stopped
+    environment:
+      SONAR_ES_BOOTSTRAP_CHECKS_DISABLE: 'true'
+      # Disables Elasticsearch bootstrap checks for local development
+    ports:
+      - "9000:9000"
+      # SonarQube web interface
+    volumes:
+      - sonarqube-data:/opt/sonarqube/data
+      - sonarqube-extensions:/opt/sonarqube/extensions
+      - sonarqube-logs:/opt/sonarqube/logs
+    networks:
+      - eshop-network
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:9000/api/system/status"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  # ========================================
+  # INFRASTRUCTURE SERVICES
+  # ========================================
+  # STARTUP ORDER: service-registry → config-server → api-gateway → auth-service → other services
+  
+  # Service Registry (Eureka) - Service Discovery (MUST START FIRST!)
+  service-registry:
+    image: service-registry:latest
+    container_name: eshop-service-registry
+    build:
+      context: ../../service-registry
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports:
+      - "8761:8761"
+      # Eureka dashboard and API
+    networks:
+      - eshop-network
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      # Activates Docker-specific configuration
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8761/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+
+  # Config Server - Centralized Configuration Management (STARTS AFTER REGISTRY)
+  config-server:
+    image: config-server:latest
+    container_name: eshop-config-server
+    build:
+      context: ../../config-server
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports:
+      - "8888:8888"
+      # Config server for centralized configuration
+    networks:
+      - eshop-network
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://service-registry:8761/eureka/
+      # Config server registers with Eureka
+    depends_on:
+      service-registry:
+        condition: service_healthy
+      # Wait for service registry to be ready
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8888/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+
+  # API Gateway - Entry point for all client requests (STARTS AFTER CONFIG SERVER)
+  api-gateway:
+    image: api-gateway:latest
+    container_name: eshop-api-gateway
+    build:
+      context: ../../api-gateway
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+      # Main entry point for frontend applications
+    networks:
+      - eshop-network
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://service-registry:8761/eureka/
+      SPRING_CLOUD_CONFIG_URI: http://config-server:8888
+      # Tells gateway where to find service registry and config server
+    depends_on:
+      service-registry:
+        condition: service_healthy
+      config-server:
+        condition: service_healthy
+      # Waits for registry and config server to be ready
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8080/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+
+  # ========================================
+  # BUSINESS SERVICES
+  # ========================================
+  
+  # Authentication Service (STARTS AFTER API GATEWAY)
+  auth-jwt-service:
+    image: auth-jwt-service:latest
+    container_name: eshop-auth-service
+    build:
+      context: ../../auth-jwt-service
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports:
+      - "8081:8081"
+    networks:
+      - eshop-network
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/eshop_db
+      SPRING_DATASOURCE_USERNAME: root
+      SPRING_DATASOURCE_PASSWORD: rootpassword
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://service-registry:8761/eureka/
+      SPRING_CLOUD_CONFIG_URI: http://config-server:8888
+      # Configuration for connecting to database, registry, and config
+    depends_on:
+      mysql:
+        condition: service_healthy
+      service-registry:
+        condition: service_healthy
+      config-server:
+        condition: service_healthy
+      api-gateway:
+        condition: service_healthy
+      # Wait for infrastructure to be fully ready
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8081/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 90s
+
+  # Product Service (STARTS AFTER AUTH SERVICE)
+  product-service:
+    image: product-service:latest
+    container_name: eshop-product-service
+    build:
+      context: ../../product-service
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports:
+      - "8084:8084"
+    networks:
+      - eshop-network
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/eshop_db
+      SPRING_DATASOURCE_USERNAME: root
+      SPRING_DATASOURCE_PASSWORD: rootpassword
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://service-registry:8761/eureka/
+      SPRING_CLOUD_CONFIG_URI: http://config-server:8888
+    depends_on:
+      mysql:
+        condition: service_healthy
+      service-registry:
+        condition: service_healthy
+      config-server:
+        condition: service_healthy
+      auth-jwt-service:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8084/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 90s
+
+  # Category Service (STARTS AFTER AUTH SERVICE)
+  category-service:
+    image: category-service:latest
+    container_name: eshop-category-service
+    build:
+      context: ../../category-service
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports:
+      - "8085:8085"
+    networks:
+      - eshop-network
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/eshop_db
+      SPRING_DATASOURCE_USERNAME: root
+      SPRING_DATASOURCE_PASSWORD: rootpassword
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://service-registry:8761/eureka/
+      SPRING_CLOUD_CONFIG_URI: http://config-server:8888
+    depends_on:
+      mysql:
+        condition: service_healthy
+      service-registry:
+        condition: service_healthy
+      config-server:
+        condition: service_healthy
+      auth-jwt-service:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8085/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 90s
+
+  # Order Service (STARTS AFTER PRODUCT/CATEGORY SERVICES)
+  order-service:
+    image: order-service:latest
+    container_name: eshop-order-service
+    build:
+      context: ../../order-service
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports:
+      - "8082:8082"
+    networks:
+      - eshop-network
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/eshop_db
+      SPRING_DATASOURCE_USERNAME: root
+      SPRING_DATASOURCE_PASSWORD: rootpassword
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://service-registry:8761/eureka/
+      SPRING_CLOUD_CONFIG_URI: http://config-server:8888
+    depends_on:
+      mysql:
+        condition: service_healthy
+      service-registry:
+        condition: service_healthy
+      config-server:
+        condition: service_healthy
+      auth-jwt-service:
+        condition: service_healthy
+      product-service:
+        condition: service_healthy
+      category-service:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8082/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 90s
+
+  # Payment Service (STARTS LAST - DEPENDS ON ORDER SERVICE)
+  payment-service:
+    image: payment-service:latest
+    container_name: eshop-payment-service
+    build:
+      context: ../../payment-service
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports:
+      - "8083:8083"
+    networks:
+      - eshop-network
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/eshop_db
+      SPRING_DATASOURCE_USERNAME: root
+      SPRING_DATASOURCE_PASSWORD: rootpassword
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://service-registry:8761/eureka/
+      SPRING_CLOUD_CONFIG_URI: http://config-server:8888
+    depends_on:
+      mysql:
+        condition: service_healthy
+      service-registry:
+        condition: service_healthy
+      config-server:
+        condition: service_healthy
+      auth-jwt-service:
+        condition: service_healthy
+      product-service:
+        condition: service_healthy
+      category-service:
+        condition: service_healthy
+      order-service:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8083/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 90s
