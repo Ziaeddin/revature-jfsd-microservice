@@ -52,8 +52,8 @@ services:
     container_name: eshop-mysql
     restart: unless-stopped
     environment:
-      MYSQL_ROOT_PASSWORD: rootpassword
-      MYSQL_DATABASE: eshop_db
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-changeme}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-eshop_db}
       # These environment variables initialize the database
     ports:
       - "3306:3306"
@@ -201,12 +201,12 @@ services:
     networks:
       - eshop-network
     environment:
-      SPRING_PROFILES_ACTIVE: docker
-      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/eshop_db
-      SPRING_DATASOURCE_USERNAME: root
-      SPRING_DATASOURCE_PASSWORD: rootpassword
-      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://service-registry:8761/eureka/
-      SPRING_CLOUD_CONFIG_URI: http://config-server:8888
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-docker}
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/${MYSQL_DATABASE:-eshop_db}
+      SPRING_DATASOURCE_USERNAME: ${DB_USERNAME:-root}
+      SPRING_DATASOURCE_PASSWORD: ${DB_PASSWORD:-changeme}
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: ${SERVICE_REGISTRY_URL:-http://service-registry:8761/eureka/}
+      SPRING_CLOUD_CONFIG_URI: ${CONFIG_SERVER_URL:-http://config-server:8888}
       # Configuration for connecting to database, registry, and config
     depends_on:
       mysql:
@@ -238,12 +238,12 @@ services:
     networks:
       - eshop-network
     environment:
-      SPRING_PROFILES_ACTIVE: docker
-      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/eshop_db
-      SPRING_DATASOURCE_USERNAME: root
-      SPRING_DATASOURCE_PASSWORD: rootpassword
-      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://service-registry:8761/eureka/
-      SPRING_CLOUD_CONFIG_URI: http://config-server:8888
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-docker}
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/${MYSQL_DATABASE:-eshop_db}
+      SPRING_DATASOURCE_USERNAME: ${DB_USERNAME:-root}
+      SPRING_DATASOURCE_PASSWORD: ${DB_PASSWORD:-changeme}
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: ${SERVICE_REGISTRY_URL:-http://service-registry:8761/eureka/}
+      SPRING_CLOUD_CONFIG_URI: ${CONFIG_SERVER_URL:-http://config-server:8888}
     depends_on:
       mysql:
         condition: service_healthy
@@ -273,12 +273,12 @@ services:
     networks:
       - eshop-network
     environment:
-      SPRING_PROFILES_ACTIVE: docker
-      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/eshop_db
-      SPRING_DATASOURCE_USERNAME: root
-      SPRING_DATASOURCE_PASSWORD: rootpassword
-      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://service-registry:8761/eureka/
-      SPRING_CLOUD_CONFIG_URI: http://config-server:8888
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-docker}
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/${MYSQL_DATABASE:-eshop_db}
+      SPRING_DATASOURCE_USERNAME: ${DB_USERNAME:-root}
+      SPRING_DATASOURCE_PASSWORD: ${DB_PASSWORD:-changeme}
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: ${SERVICE_REGISTRY_URL:-http://service-registry:8761/eureka/}
+      SPRING_CLOUD_CONFIG_URI: ${CONFIG_SERVER_URL:-http://config-server:8888}
     depends_on:
       mysql:
         condition: service_healthy
@@ -308,12 +308,12 @@ services:
     networks:
       - eshop-network
     environment:
-      SPRING_PROFILES_ACTIVE: docker
-      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/eshop_db
-      SPRING_DATASOURCE_USERNAME: root
-      SPRING_DATASOURCE_PASSWORD: rootpassword
-      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://service-registry:8761/eureka/
-      SPRING_CLOUD_CONFIG_URI: http://config-server:8888
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-docker}
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/${MYSQL_DATABASE:-eshop_db}
+      SPRING_DATASOURCE_USERNAME: ${DB_USERNAME:-root}
+      SPRING_DATASOURCE_PASSWORD: ${DB_PASSWORD:-changeme}
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: ${SERVICE_REGISTRY_URL:-http://service-registry:8761/eureka/}
+      SPRING_CLOUD_CONFIG_URI: ${CONFIG_SERVER_URL:-http://config-server:8888}
     depends_on:
       mysql:
         condition: service_healthy
@@ -347,12 +347,12 @@ services:
     networks:
       - eshop-network
     environment:
-      SPRING_PROFILES_ACTIVE: docker
-      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/eshop_db
-      SPRING_DATASOURCE_USERNAME: root
-      SPRING_DATASOURCE_PASSWORD: rootpassword
-      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://service-registry:8761/eureka/
-      SPRING_CLOUD_CONFIG_URI: http://config-server:8888
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-docker}
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/${MYSQL_DATABASE:-eshop_db}
+      SPRING_DATASOURCE_USERNAME: ${DB_USERNAME:-root}
+      SPRING_DATASOURCE_PASSWORD: ${DB_PASSWORD:-changeme}
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: ${SERVICE_REGISTRY_URL:-http://service-registry:8761/eureka/}
+      SPRING_CLOUD_CONFIG_URI: ${CONFIG_SERVER_URL:-http://config-server:8888}
     depends_on:
       mysql:
         condition: service_healthy

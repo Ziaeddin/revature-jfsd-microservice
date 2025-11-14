@@ -3,6 +3,11 @@
 .AppleDouble
 .LSOverride
 
+# Environment variables (sensitive data)
+.env
+*.env
+!.env.example
+
 # Maven
 target/
 .mvn/wrapper/maven-wrapper.jar
