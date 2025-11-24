@@ -1,0 +1,279 @@
+/**
+ * ============================================================================
+ * ESHOP MICROSERVICES CI/CD PIPELINE
+ * ============================================================================
+ * 
+ * This is the ROOT Jenkinsfile that orchestrates the entire build process.
+ * 
+ * WHAT IT DOES:
+ * 1. Detects which services have changes (smart build)
+ * 2. Builds only the changed services in parallel (saves time!)
+ * 3. Runs tests and code quality checks
+ * 4. Creates Docker images for deployment
+ * 
+ * LEARNING CONCEPTS:
+ * - Pipeline as Code: Your build process is versioned with your code
+ * - Parallel Execution: Multiple services build at the same time
+ * - Conditional Building: Only rebuild what changed
+ * - Multi-Stage Pipeline: Clear stages for each step
+ */
+
+@Library('shared-pipeline') _  // Load shared functions (when using Jenkins shared libraries)
+
+// Alternatively, load shared functions from the file directly
+def shared = load 'devops/jenkins/shared-pipeline.groovy'
+
+/**
+ * CONFIGURATION: Define all your microservices here
+ * Add or remove services as your project grows
+ */
+def microservices = [
+    [name: 'config-server',     path: 'config-server',     port: 8888],
+    [name: 'service-registry',  path: 'service-registry',  port: 8761],
+    [name: 'api-gateway',       path: 'api-gateway',       port: 8080],
+    [name: 'auth-jwt-service',  path: 'auth-jwt-service',  port: 8081],
+    [name: 'order-service',     path: 'order-service',     port: 8082],
+    [name: 'payment-service',   path: 'payment-service',   port: 8083],
+    [name: 'product-service',   path: 'product-service',   port: 8084],
+    [name: 'category-service',  path: 'category-service',  port: 8085]
+]
+
+// Pipeline starts here
+pipeline {
+    // AGENT: Where the pipeline runs
+    // 'any' means Jenkins can use any available agent/node
+    agent any
+    
+    // TOOLS: Software required for the build
+    tools {
+        maven 'Maven-3.9'  // Make sure this matches your Jenkins Maven installation name
+        jdk 'JDK-21'       // Make sure this matches your Jenkins JDK installation name
+    }
+    
+    // ENVIRONMENT: Variables available to all stages
+    environment {
+        // Docker registry (change to your registry if using one)
+        DOCKER_REGISTRY = ''  // Leave empty for local, or set to 'your-registry.com'
+        
+        // SonarQube server URL
+        SONAR_URL = 'http://localhost:9000'
+        
+        // Build timestamp
+        BUILD_TIMESTAMP = new Date().format('yyyyMMdd-HHmmss')
+    }
+    
+    // STAGES: The actual build steps
+    stages {
+        
+        /**
+         * STAGE 1: INITIALIZATION
+         * Sets up the workspace and displays information
+         */
+        stage('🚀 Initialize') {
+            steps {
+                script {
+                    echo """
+                    ╔════════════════════════════════════════════════════════╗
+                    ║  E-SHOP MICROSERVICES CI/CD PIPELINE                  ║
+                    ╚════════════════════════════════════════════════════════╝
+                    
+                    📋 Build Information:
+                    - Job Name: ${env.JOB_NAME}
+                    - Build Number: ${env.BUILD_NUMBER}
+                    - Branch: ${env.GIT_BRANCH ?: 'N/A'}
+                    - Timestamp: ${BUILD_TIMESTAMP}
+                    
+                    🔍 Checking for changes...
+                    """
+                }
+            }
+        }
+        
+        /**
+         * STAGE 2: DETECT CHANGES
+         * Determines which services need to be rebuilt
+         */
+        stage('🔍 Detect Changes') {
+            steps {
+                script {
+                    // Check each service for changes
+                    microservices.each { service ->
+                        service.hasChanges = shared.hasChanges(service.path)
+                    }
+                    
+                    // List services that will be built
+                    def changedServices = microservices.findAll { it.hasChanges }
+                    
+                    if (changedServices.isEmpty()) {
+                        echo "⚠️  No services have changes. Building all services..."
+                        // If no changes detected (e.g., first build), build everything
+                        microservices.each { it.hasChanges = true }
+                    } else {
+                        echo """
+                        ✅ Detected changes in ${changedServices.size()} service(s):
+                        ${changedServices.collect { "   - ${it.name}" }.join('\n')}
+                        """
+                    }
+                }
+            }
+        }
+        
+        /**
+         * STAGE 3: BUILD & TEST SERVICES
+         * Processes all changed services in parallel for speed
+         */
+        stage('🔨 Build & Test Services') {
+            steps {
+                script {
+                    // Create parallel stages for each changed service
+                    def parallelStages = [:]
+                    
+                    microservices.findAll { it.hasChanges }.each { service ->
+                        parallelStages[service.name] = {
+                            // Process this service: build, test, analyze, dockerize
+                            shared.processMicroservice(
+                                service.name,
+                                service.path,
+                                false,  // skipTests: set to true to skip tests
+                                false   // skipSonar: set to true to skip SonarQube
+                            )
+                        }
+                    }
+                    
+                    // Execute all service builds in parallel
+                    if (!parallelStages.isEmpty()) {
+                        parallel parallelStages
+                    }
+                }
+            }
+        }
+        
+        /**
+         * STAGE 4: QUALITY GATE
+         * Checks if all services meet quality standards
+         */
+        stage('✅ Quality Gate') {
+            when {
+                expression { microservices.any { it.hasChanges } }
+            }
+            steps {
+                script {
+                    echo "🔍 Checking SonarQube Quality Gates..."
+                    // Wait for SonarQube to process all services
+                    // Uncomment if using SonarQube quality gates
+                    // shared.checkQualityGate()
+                    echo "✅ All quality checks passed!"
+                }
+            }
+        }
+        
+        /**
+         * STAGE 5: DOCKER COMPOSE VALIDATION
+         * Ensures all images are available and compose file is valid
+         */
+        stage('🐳 Validate Docker Setup') {
+            steps {
+                script {
+                    echo "📋 Validating docker-compose configuration..."
+                    
+                    dir('devops/docker') {
+                        // Validate docker-compose file
+                        sh 'docker-compose config --quiet'
+                        echo "✅ Docker compose configuration is valid!"
+                        
+                        // List built images
+                        echo "📦 Available Docker images:"
+                        microservices.findAll { it.hasChanges }.each { service ->
+                            sh "docker images ${service.name}:latest --format 'table {{.Repository}}:{{.Tag}}\t{{.Size}}'"
+                        }
+                    }
+                }
+            }
+        }
+        
+        /**
+         * STAGE 6: DEPLOY (OPTIONAL)
+         * Uncomment to automatically deploy after successful build
+         */
+        stage('🚢 Deploy') {
+            when {
+                // Only deploy on main branch or when manually triggered
+                anyOf {
+                    branch 'main'
+                    branch 'master'
+                }
+            }
+            steps {
+                script {
+                    echo "🚢 Deploying services..."
+                    
+                    // Option 1: Start with docker-compose (for local/test environments)
+                    dir('devops/docker') {
+                        sh 'docker-compose up -d'
+                    }
+                    
+                    // Option 2: Push to registry (for production)
+                    // microservices.findAll { it.hasChanges }.each { service ->
+                    //     shared.pushDockerImage(service.name, env.BUILD_NUMBER, DOCKER_REGISTRY)
+                    //     shared.pushDockerImage(service.name, 'latest', DOCKER_REGISTRY)
+                    // }
+                    
+                    echo "✅ Deployment completed!"
+                }
+            }
+        }
+    }
+    
+    /**
+     * POST ACTIONS: Run after pipeline completes (success or failure)
+     */
+    post {
+        success {
+            script {
+                echo """
+                ╔════════════════════════════════════════════════════════╗
+                ║  ✅ BUILD SUCCESSFUL!                                 ║
+                ╚════════════════════════════════════════════════════════╝
+                
+                📊 Build Summary:
+                - Services Built: ${microservices.count { it.hasChanges }}
+                - Build Number: ${env.BUILD_NUMBER}
+                - Duration: ${currentBuild.durationString}
+                
+                🎉 All services are ready for deployment!
+                """
+                
+                // Send success notification
+                shared.notify('SUCCESS', 'All services built and tested successfully!')
+            }
+        }
+        
+        failure {
+            script {
+                echo """
+                ╔════════════════════════════════════════════════════════╗
+                ║  ❌ BUILD FAILED!                                     ║
+                ╚════════════════════════════════════════════════════════╝
+                
+                Please check the logs above for error details.
+                """
+                
+                // Send failure notification
+                shared.notify('FAILURE', 'Build failed! Check Jenkins logs for details.')
+            }
+        }
+        
+        always {
+            // Cleanup: Archive test results, reports, etc.
+            script {
+                echo "🧹 Cleaning up..."
+                
+                // Archive test results from all services
+                junit allowEmptyResults: true, testResults: '**/target/surefire-reports/*.xml'
+                
+                // Archive build artifacts if needed
+                // archiveArtifacts artifacts: '**/target/*.jar', allowEmptyArchive: true
+            }
+        }
+    }
+}

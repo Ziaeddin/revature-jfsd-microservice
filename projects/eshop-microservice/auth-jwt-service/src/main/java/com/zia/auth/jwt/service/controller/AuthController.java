@@ -21,7 +21,7 @@ public class AuthController {
     @PostMapping("/register")
     public ResponseEntity<String> registerUser(@RequestBody RegisterDto registerDto) {
         String responseMessage = authService.register(registerDto);
-        return new ResponseEntity<String>(responseMessage, HttpStatus.CREATED);
+        return new ResponseEntity<>(responseMessage, HttpStatus.CREATED);
     }
 
     @PostMapping("/login")
@@ -29,6 +29,4 @@ public class AuthController {
         String token = authService.login(loginDto);
         return ResponseEntity.ok(token);
     }
-
-
 }
